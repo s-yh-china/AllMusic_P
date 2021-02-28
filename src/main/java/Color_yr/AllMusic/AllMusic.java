@@ -2,11 +2,12 @@ package Color_yr.AllMusic;
 
 import Color_yr.AllMusic.API.IMusicAPI;
 import Color_yr.AllMusic.API.ISide;
-import Color_yr.AllMusic.Message.MessageOBJ;
+import Color_yr.AllMusic.Message.*;
 import Color_yr.AllMusic.MusicAPI.MusicAPI1.API1;
 import Color_yr.AllMusic.MusicAPI.MusicAPI2.API2;
 import Color_yr.AllMusic.MusicAPI.SongSearch.SearchPage;
 import Color_yr.AllMusic.MusicPlay.PlayMusic;
+import Color_yr.AllMusic.MusicPlay.SendHud.SaveOBJ;
 import Color_yr.AllMusic.Side.SideBukkit.VaultHook;
 import Color_yr.AllMusic.Utils.RunApi;
 import Color_yr.AllMusic.Utils.logs;
@@ -20,27 +21,49 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class AllMusic {
     public static final String channel = "allmusic:channel";
-    public static final String Version = "2.9.1";
+    public static final String Version = "2.10.4";
 
     private static final Map<String, SearchPage> SearchSave = new HashMap<>();
     private static final List<String> VotePlayer = new ArrayList<>();
     private static final List<String> NowPlayPlayer = new ArrayList<>();
 
-    public static Logger log;
+    public static IMyLogger log;
     public static ISide Side;
-    public static IMusicAPI Music;
     public static boolean isRun;
+    public static VaultHook Vault;
+    private static IMusicAPI Music;
     private static ConfigOBJ Config;
     private static MessageOBJ Message;
     private static File ConfigFile;
     private static File MessageFile;
     private static File DataFolder;
 
-    public static VaultHook Vault;
+    public static void configCheck() {
+        if (Config == null) {
+            Config = new ConfigOBJ();
+            log.warning("§d[AllMusic]§c配置文件Config.json错误，已覆盖");
+            save();
+        }
+        else if (Config.check()) {
+            log.warning("§d[AllMusic]§c配置文件Config.json错误，已覆盖");
+            save();
+        }
+    }
+    private static void messageCheck() {
+        if (Message == null) {
+            Message = new MessageOBJ();
+            log.warning("§d[AllMusic]§c配置文件Message.json错误，已覆盖");
+            save();
+        }
+        else if (Message.check()) {
+            log.warning("§d[AllMusic]§c配置文件Message.json错误，已覆盖");
+            save();
+        }
+    }
 
     public static boolean containNowPlay(String player) {
         return NowPlayPlayer.contains(player);
@@ -99,17 +122,26 @@ public class AllMusic {
     public static void save() {
         try {
             String data = new GsonBuilder().setPrettyPrinting().create().toJson(Config);
-            Writer out = new FileWriter(ConfigFile);
-            out.write(data);
-            out.close();
+            FileOutputStream out = new FileOutputStream(ConfigFile);
+            OutputStreamWriter write = new OutputStreamWriter(
+                    out, StandardCharsets.UTF_8);
+            write.write(data);
+            write.close();
+            data = new GsonBuilder().setPrettyPrinting().create().toJson(Message);
+            out = new FileOutputStream(MessageFile);
+            write = new OutputStreamWriter(
+                    out, StandardCharsets.UTF_8);
+            write.write(data);
+            write.close();
         } catch (Exception e) {
-            log.warning("§d[AllMusic]§c配置文件错误");
+            log.warning("§d[AllMusic]§c配置文件保存错误");
             e.printStackTrace();
         }
     }
 
     public static void start() {
         PlayMusic.start();
+        SearchTask.start();
         log.info("§d[AllMusic]§2§e已启动-" + Version);
     }
 
@@ -118,22 +150,30 @@ public class AllMusic {
             clearVote();
             logs.stop();
             Side.Send("[Stop]", false);
+            SearchTask.stop();
             PlayMusic.stop();
-            if (AllMusic.Config.isAutoApi()) {
-                RunApi.stop();
-            }
+//            if (AllMusic.Config.AutoApi) {
+//                RunApi.stop();
+//            }
         } catch (IOException e) {
             e.printStackTrace();
         }
         log.info("§d[AllMusic]§2§e已停止，感谢使用");
     }
 
-    private void initAPI() {
-        if (AllMusic.Config.isAutoApi()) {
-            if (!RunApi.runAPI(DataFolder)) {
-                log.warning("§d[AllMusic]§c外置API启动失败");
-            }
+    public static IMusicAPI getMusic() {
+        if (Music == null) {
+            initAPI();
         }
+        return Music;
+    }
+
+    private static void initAPI() {
+//        if (AllMusic.Config.AutoApi) {
+//            if (!RunApi.runAPI(DataFolder)) {
+//                log.warning("§d[AllMusic]§c外置API启动失败");
+//            }
+//        }
         switch (AllMusic.Config.getMusic_Api()) {
             case 2: {
                 AllMusic.Music = new API1();
@@ -147,7 +187,7 @@ public class AllMusic {
         }
     }
 
-    private void LoadConfig() {
+    private static void LoadConfig() {
         try {
             InputStreamReader reader = new InputStreamReader(
                     new FileInputStream(ConfigFile), StandardCharsets.UTF_8);
@@ -155,34 +195,20 @@ public class AllMusic {
             Config = new Gson().fromJson(bf, ConfigOBJ.class);
             bf.close();
             reader.close();
-            if (Config == null) {
-                log.warning("§d[AllMusic]§c配置文件错误");
-                Config = new ConfigOBJ();
-            }
+            configCheck();
 
             reader = new InputStreamReader(new FileInputStream(AllMusic.MessageFile), StandardCharsets.UTF_8);
             bf = new BufferedReader(reader);
             Message = new Gson().fromJson(bf, MessageOBJ.class);
             bf.close();
             reader.close();
-            if (Config == null) {
-                log.warning("§d[AllMusic]§c语言文件错误");
-                Message = new MessageOBJ();
-            }
+            messageCheck();
 
             log.info("§d[AllMusic]§e当前插件版本为：" + AllMusic.Version
                     + "，你的配置文件版本为：" + AllMusic.Config.getVersion());
 
             if (!AllMusic.Version.equalsIgnoreCase(AllMusic.Config.getVersion())) {
                 log.warning("§d[AllMusic]§c请及时更新配置文件");
-            }
-
-            for (String item : AllMusic.Config.getNoMusicPlayer()) {
-                AllMusic.log.info("玩家：" + item + "不参与点歌");
-            }
-
-            for (String item : AllMusic.Config.getNoMusicServer()) {
-                AllMusic.log.info("服务器：" + item + "不参与点歌");
             }
             initAPI();
         } catch (Exception e) {

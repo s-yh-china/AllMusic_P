@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class ConfigOBJ {
     private String Music_Url;
@@ -110,6 +111,10 @@ public class ConfigOBJ {
         return Music_Api;
     }
 
+    public void setMusic_Api(int music_Api) {
+        Music_Api = music_Api;
+    }
+
     public boolean isNeedPermission() {
         return NeedPermission;
     }
@@ -195,7 +200,36 @@ public class ConfigOBJ {
         AutoApi = autoApi;
     }
 
-    public void setMusic_Api(int music_Api) {
-        Music_Api = music_Api;
+    public boolean check() {
+        boolean saveConfig = false;
+        if (PlayList == null) {
+            saveConfig = true;
+            PlayList = new ArrayList<>();
+        }
+        if (Admin == null) {
+            saveConfig = true;
+            Admin = new ArrayList<>();
+        }
+        if (BanMusic == null) {
+            saveConfig = true;
+            BanMusic = new ArrayList<>();
+        }
+        if (DefaultHud == null) {
+            saveConfig = true;
+            DefaultHud = new SaveOBJ();
+        }
+        if (HudSave == null) {
+            saveConfig = true;
+            HudSave = new ConcurrentHashMap<>();
+        }
+        if (NoMusicPlayer == null) {
+            saveConfig = true;
+            NoMusicPlayer = new ArrayList<>();
+        }
+        if (NoMusicServer == null) {
+            saveConfig = true;
+            NoMusicServer = new ArrayList<>();
+        }
+        return saveConfig;
     }
 }

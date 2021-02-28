@@ -4,15 +4,18 @@ import Color_yr.AllMusic.AllMusic;
 import Color_yr.AllMusic.MusicAPI.SongLyric.LyricSave;
 import Color_yr.AllMusic.MusicAPI.SongLyric.ShowOBJ;
 import Color_yr.AllMusic.MusicPlay.SendHud.Hud;
+import Color_yr.AllMusic.TaskObj;
 
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
-class PlayGo extends Thread {
+class PlayGo {
 
-    private int count = 0;
-    private final Runnable runnable = () -> {
+    private static int count = 0;
+    private static boolean isRun;
+    private static Thread taskT;
+    private static final Runnable runnable = () -> {
         PlayMusic.MusicNowTime += 10;
         count++;
         if (count == 100) {
@@ -20,8 +23,8 @@ class PlayGo extends Thread {
             count = 0;
         }
     };
-    private int times = 0;
-    private final Runnable runnable1 = () -> {
+    private static int times = 0;
+    private static final Runnable runnable1 = () -> {
         ShowOBJ show = PlayMusic.Lyric.checkTime(PlayMusic.MusicNowTime);
         if (show != null) {
             PlayMusic.nowLyric = show;
@@ -36,10 +39,21 @@ class PlayGo extends Thread {
         }
     };
 
-    private ScheduledExecutorService service;
-    private ScheduledExecutorService service1;
+    private static ScheduledExecutorService service;
+    private static ScheduledExecutorService service1;
 
-    public void closeTimer() {
+    public static void start() {
+        taskT = new Thread(Do);
+        isRun = true;
+        taskT.start();
+    }
+
+    public static void stop() {
+        closeTimer();
+        isRun = false;
+    }
+
+    public static void closeTimer() {
         if (service != null) {
             service.shutdown();
             service = null;
@@ -50,7 +64,7 @@ class PlayGo extends Thread {
         }
     }
 
-    private void startTimer() {
+    private static void startTimer() {
         service = Executors.newSingleThreadScheduledExecutor();
         service.scheduleAtFixedRate(runnable, 0, 10, TimeUnit.MILLISECONDS);
         if (PlayMusic.Lyric.isHaveLyric()) {
@@ -59,7 +73,7 @@ class PlayGo extends Thread {
         }
     }
 
-    public void clear() {
+    public static void clear() {
         PlayMusic.MusicNowTime = 0;
         PlayMusic.MusicAllTime = 0;
         PlayMusic.MusicLessTime = 0;
@@ -70,18 +84,21 @@ class PlayGo extends Thread {
         Hud.clearHud();
     }
 
-    @Override
-    public synchronized void run() {
-        while (AllMusic.isRun) {
+    private static final Runnable Do = () -> {
+        while (isRun) {
             if (PlayMusic.getSize() == 0) {
                 try {
                     Hud.SendHudNowData();
                     Hud.SendHudLyricData(null);
                     Hud.SendHudListData();
                     if (AllMusic.Side.NeedPlay()) {
-                        String ID = AllMusic.Music.GetListMusic();
+                        String ID = AllMusic.getMusic().GetListMusic();
                         if (ID != null) {
-                            AllMusic.Side.RunTask(() -> PlayMusic.addMusic(ID, "空闲列表", true));
+                            TaskObj obj = new TaskObj();
+                            obj.sender = ID;
+                            obj.Name = "空闲列表";
+                            obj.isDefault = true;
+                            PlayMusic.addTask(obj);
                         }
                     }
                     Thread.sleep(1000);
@@ -94,7 +111,7 @@ class PlayGo extends Thread {
                 PlayMusic.remove(0);
 
                 String url = PlayMusic.NowPlayMusic.getPlayerUrl() == null ?
-                        AllMusic.Music.GetPlayUrl(PlayMusic.NowPlayMusic.getID()) :
+                        AllMusic.getMusic().GetPlayUrl(PlayMusic.NowPlayMusic.getID()) :
                         PlayMusic.NowPlayMusic.getPlayerUrl();
                 if (url == null) {
                     String data = AllMusic.getMessage().getMusicPlay().getNoCanPlay();
@@ -103,7 +120,7 @@ class PlayGo extends Thread {
                 }
 
                 if (PlayMusic.NowPlayMusic.getPlayerUrl() == null)
-                    PlayMusic.Lyric = AllMusic.Music.getLyric(PlayMusic.NowPlayMusic.getID());
+                    PlayMusic.Lyric = AllMusic.getMusic().getLyric(PlayMusic.NowPlayMusic.getID());
                 else
                     PlayMusic.Lyric = new LyricSave();
 
@@ -156,5 +173,5 @@ class PlayGo extends Thread {
                 clear();
             }
         }
-    }
+    };
 }
